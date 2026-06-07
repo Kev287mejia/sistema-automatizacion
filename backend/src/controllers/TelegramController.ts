@@ -86,14 +86,14 @@ export class TelegramController {
           const data = result.data;
           botResponseText = `Buenos días, Directora.\n\n`;
           botResponseText += `*Resumen del día:*\n`;
-          botResponseText += `* ${data.meetingsCount} reunión${data.meetingsCount !== 1 ? 'es' : ''} programada${data.meetingsCount !== 1 ? 's' : ''}\n`;
-          botResponseText += `* ${data.workshopsCount} taller${data.workshopsCount !== 1 ? 'es' : ''} de innovación\n`;
-          botResponseText += `* ${data.pendingTasksCount} pendiente${data.pendingTasksCount !== 1 ? 'es' : ''} institucional${data.pendingTasksCount !== 1 ? 'es' : ''}\n\n`;
+          botResponseText += `• ${data.meetingsCount} reunión${data.meetingsCount !== 1 ? 'es' : ''} programada${data.meetingsCount !== 1 ? 's' : ''}\n`;
+          botResponseText += `• ${data.workshopsCount} taller${data.workshopsCount !== 1 ? 'es' : ''} de innovación\n`;
+          botResponseText += `• ${data.pendingTasksCount} pendiente${data.pendingTasksCount !== 1 ? 'es' : ''} institucional${data.pendingTasksCount !== 1 ? 'es' : ''}\n\n`;
           
           botResponseText += `*Alertas:*\n`;
           if (data.alerts && data.alerts.length > 0) {
             data.alerts.forEach((alert: string) => {
-              botResponseText += `* ${alert}\n`;
+              botResponseText += `• ${alert}\n`;
             });
           } else {
             botResponseText += `_Sin alertas críticas hoy._\n`;
