@@ -1,4 +1,4 @@
-import { model, jsonModel } from '../integrations/ai/gemini';
+import { model, jsonModel } from '../integrations/ai/openrouter';
 
 export class AIAnalysisService {
   /**

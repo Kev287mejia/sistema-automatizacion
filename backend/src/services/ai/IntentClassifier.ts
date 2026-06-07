@@ -1,4 +1,4 @@
-import { genAI } from '../../integrations/ai/gemini';
+import { genAI } from '../../integrations/ai/openrouter';
 
 export interface ChatMessage {
   role: 'user' | 'model';
