@@ -61,8 +61,16 @@ export class IntentService {
       }
     `;
 
+    const callWithTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+      let timeoutHandle: any;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs);
+      });
+      return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutHandle));
+    };
+
     try {
-      const result = await model.generateContent(prompt);
+      const result = await callWithTimeout(model.generateContent(prompt), 5000);
       const cleanedText = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleanedText) as ParsedIntent;
     } catch (error: any) {
