@@ -1,4 +1,4 @@
-import { model } from '../../integrations/ai/gemini';
+import { jsonModel } from '../../integrations/ai/gemini';
 
 export interface ChatMessage {
   role: 'user' | 'model';
@@ -73,7 +73,7 @@ export class IntentClassifier {
     `;
 
     try {
-      const result = await this.callWithTimeout(model.generateContent(prompt), 5000);
+      const result = await this.callWithTimeout(jsonModel.generateContent(prompt), 5000);
       const rawText = result.response.text();
       const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleanedText) as DetectedIntent;

@@ -12,4 +12,10 @@ if (!apiKey) {
 // Inicializamos el cliente de Gemini
 export const genAI = new GoogleGenerativeAI(apiKey || 'dummy_key');
 export const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' });
+export const jsonModel = genAI.getGenerativeModel({
+  model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  generationConfig: {
+    responseMimeType: 'application/json'
+  }
+});
 

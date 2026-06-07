@@ -1,4 +1,4 @@
-import { model } from '../integrations/ai/gemini';
+import { model, jsonModel } from '../integrations/ai/gemini';
 
 export class AIAnalysisService {
   /**
@@ -108,7 +108,7 @@ export class AIAnalysisService {
         "recomendaciones": "..."
       }
     `;
-    const result = await model.generateContent(prompt);
+    const result = await jsonModel.generateContent(prompt);
     const cleanedText = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanedText);
   }
