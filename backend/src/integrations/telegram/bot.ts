@@ -24,25 +24,17 @@ const supabaseSessionStore = {
   delete: async (key: string) => await sessionRepo.deleteSession(key)
 };
 
-bot.use(session({ store: supabaseSessionStore }));
-bot.use(stage.middleware());
+// El webhook genérico para Serverless
+export const webhookPath = `/api/telegram-webhook`;
 
-export const launchBot = async (app?: any) => {
-  if (process.env.NODE_ENV === 'production') {
-    // Modo Webhook para Producción
-    const webhookDomain = process.env.WEBHOOK_DOMAIN;
-    if (!webhookDomain) throw new Error('WEBHOOK_DOMAIN no está definido en .env');
-    
-    const webhookPath = `/telegraf/${bot.secretPathComponent()}`;
-    await bot.telegram.setWebhook(`${webhookDomain}${webhookPath}`);
-    
-    if (app) {
-      app.use(bot.webhookCallback(webhookPath));
-    }
-    logger.info(`🚀 Telegram Bot corriendo en Modo Webhook (Producción) en ${webhookDomain}`);
-  } else {
-    // Modo Polling para Desarrollo Local
+export const launchBot = async () => {
+  if (process.env.NODE_ENV !== 'production') {
     bot.launch();
     logger.info('🚀 Telegram Bot corriendo en Modo Polling (Desarrollo)');
   }
+};
+
+export const setupProductionWebhook = async (domain: string) => {
+  await bot.telegram.setWebhook(`${domain}${webhookPath}`);
+  logger.info(`✅ Webhook configurado exitosamente apuntando a ${domain}${webhookPath}`);
 };
