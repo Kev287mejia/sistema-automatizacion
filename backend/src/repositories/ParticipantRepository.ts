@@ -68,6 +68,21 @@ export class ParticipantRepository {
     return data as Participant;
   }
 
+  // Búsqueda por Telegram ID
+  async findByTelegramId(telegramId: number): Promise<Participant | null> {
+    const { data, error } = await supabase
+      .from(this.tableName)
+      .select('*')
+      .eq('telegram_id', telegramId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Error en Base de Datos (findByTelegramId): ${error.message}`);
+    }
+    return data as Participant;
+  }
+
   // 3. Update (Actualizar)
   async update(id: string, updates: Partial<Participant>): Promise<Participant> {
     const { data, error } = await supabase

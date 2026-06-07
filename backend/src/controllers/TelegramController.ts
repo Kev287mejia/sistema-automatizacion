@@ -4,6 +4,7 @@ import { EventService } from '../services/EventService';
 import { EventRepository } from '../repositories/EventRepository';
 // Importar ChatMessage desde IntentService
 import { IntentService, ChatMessage } from '../services/IntentService';
+import { AIAnalysisService } from '../services/AIAnalysisService';
 
 // Extender la sesión de Telegraf para incluir el historial
 interface CustomSession {

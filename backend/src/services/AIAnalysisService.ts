@@ -77,6 +77,8 @@ export class AIAnalysisService {
     `;
     const result = await model.generateContent(prompt);
     return result.response.text();
+  }
+
   /**
    * 6. Redacción Narrativa Estricta para Informes
    * No inventa datos. Toma la data dura y la redacta estructuradamente.

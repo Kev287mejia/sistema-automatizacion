@@ -28,11 +28,8 @@ app.use('/api/', apiLimiter);
 app.use(bot.webhookCallback(webhookPath));
 
 // 2. Controladores
-const telegramController = new TelegramController();
-telegramController.initialize();
-const webhookController = new WebhookController();
-
-app.use('/api/webhooks', webhookController.getRouter());
+new TelegramController(bot);
+new WebhookController(app, bot);
 
 // Endpoint maestro para configurar el webhook en Producción
 app.get('/api/setup-telegram', async (req: Request, res: Response) => {
