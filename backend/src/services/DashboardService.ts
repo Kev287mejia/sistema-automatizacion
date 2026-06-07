@@ -149,7 +149,7 @@ export class DashboardService {
   async generateDailySummary(): Promise<string> {
     const data = await this.getDailyExecutiveSummary();
     let res = `🏛️ *Resumen Matutino Institucional*\n\n`;
-    res += `Buenos días, Directora. Aquí tiene la situación actual de su área:\n\n`;
+    res += `Buenos días, MSc. Kenia Salomon. Aquí tiene la situación actual de su área:\n\n`;
     res += `🤝 *Reuniones Pendientes: (${data.meetingsCount})*\n`;
     if (data.meetings.length > 0) {
       data.meetings.forEach(m => res += `• ${m.title} (${m.time})\n`);

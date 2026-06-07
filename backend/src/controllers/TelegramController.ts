@@ -84,7 +84,7 @@ export class TelegramController {
         // actionType === 'reply'
         if (result.intent === 'morning_summary') {
           const data = result.data;
-          botResponseText = `Buenos días, Directora.\n\n`;
+          botResponseText = `Buenos días, MSc. Kenia Salomon.\n\n`;
           botResponseText += `*Resumen del día:*\n`;
           botResponseText += `• ${data.meetingsCount} reunión${data.meetingsCount !== 1 ? 'es' : ''} programada${data.meetingsCount !== 1 ? 's' : ''}\n`;
           botResponseText += `• ${data.workshopsCount} taller${data.workshopsCount !== 1 ? 'es' : ''} de innovación\n`;

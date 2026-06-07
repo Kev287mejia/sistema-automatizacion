@@ -82,7 +82,7 @@ export class IntentClassifier {
       // Fallback seguro en caso de error o timeout
       return {
         intent: 'casual_conversation',
-        response_text: 'Disculpe directora, estoy experimentando una breve interrupción en mi sistema cognitivo. ¿Podría repetir la instrucción?'
+        response_text: 'Disculpe MSc. Kenia Salomon, estoy experimentando una breve interrupción en mi sistema cognitivo. ¿Podría repetir la instrucción?'
       };
     }
   }
