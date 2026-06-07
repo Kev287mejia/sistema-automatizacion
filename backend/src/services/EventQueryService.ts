@@ -86,17 +86,17 @@ export class EventQueryService {
     const daysOfWeek = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
     if (dayDifference === 0) {
-      return `${clockEmoji} Hoy – ${timeStr}`;
+      return `${clockEmoji} hoy ${timeStr}`;
     } else if (dayDifference === 1) {
-      return `${clockEmoji} Mañana – ${timeStr}`;
+      return `${clockEmoji} mañana ${timeStr}`;
     } else if (dayDifference > 1 && dayDifference < 7) {
-      return `${clockEmoji} ${daysOfWeek[eventDateLocal.getDay()]} – ${timeStr}`;
+      return `${clockEmoji} ${daysOfWeek[eventDateLocal.getDay()].toLowerCase()} ${timeStr}`;
     } else {
       const monthNames = [
         'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
         'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
       ];
-      return `${clockEmoji} ${eventDateLocal.getDate()} de ${monthNames[eventDateLocal.getMonth()]} – ${timeStr}`;
+      return `${clockEmoji} ${eventDateLocal.getDate()} de ${monthNames[eventDateLocal.getMonth()]} ${timeStr}`;
     }
   }
 
@@ -123,9 +123,23 @@ export class EventQueryService {
     let responseText = '📅 *Talleres y Actividades Programadas*\n\n';
 
     events.forEach(event => {
+      let title = typeof event.title === 'string' ? event.title.trim() : '';
+      const type = event.event_type || 'Taller';
+      const titleLower = title.toLowerCase();
+
+      if (
+        titleLower === 'null' ||
+        titleLower === 'undefined' ||
+        titleLower === 'nulo' ||
+        titleLower === '' ||
+        titleLower === type.toLowerCase()
+      ) {
+        title = type === 'Taller' ? 'Taller de Innovación y Emprendimiento' : `${type} Institucional`;
+      }
+
       const dateText = this.formatEventDate(event.start_date, localNow);
       const locationText = event.location || 'Sin ubicación definida';
-      responseText += `* ${event.title}\n`;
+      responseText += `* ${title}\n`;
       responseText += `📍 ${locationText}\n`;
       responseText += `${dateText}\n\n`;
     });

@@ -11,17 +11,10 @@ export class EventService {
    * Crea un evento a partir de parámetros estructurados extraídos por Gemini.
    */
   async processEventCreation(params: any): Promise<string> {
-    const title = params.event_title || params.title || params.topic;
+    const rawTitle = params.event_title || params.title || params.topic;
     const type = params.event_type || params.type || 'Taller';
     const rawDay = params.date || 'hoy';
     const rawTime = params.time || '12 PM';
-
-    if (!title) {
-      return `❌ No logré determinar el título del evento.\n\n` +
-             `*Formato correcto:* \n` +
-             `"Crear taller de [título] el [día] a las [hora]"\n\n` +
-             `_Ejemplo: Crear taller de innovación el viernes a las 2 PM_`;
-    }
 
     // Normalizar Tipo a los autorizados en la base de datos (event_type_enum)
     let eventType: 'Taller' | 'Conferencia' | 'Asesoría' | 'Reunión' | 'Competencia' = 'Taller';
@@ -30,6 +23,19 @@ export class EventService {
     else if (typeLower.includes('conferencia')) eventType = 'Conferencia';
     else if (typeLower.includes('asesor')) eventType = 'Asesoría';
     else if (typeLower.includes('competencia')) eventType = 'Competencia';
+
+    // Sanitizar título con fallbacks inteligentes
+    let title = typeof rawTitle === 'string' ? rawTitle.trim() : '';
+    const titleLower = title.toLowerCase();
+    if (
+      titleLower === 'null' ||
+      titleLower === 'undefined' ||
+      titleLower === 'nulo' ||
+      titleLower === '' ||
+      titleLower === eventType.toLowerCase()
+    ) {
+      title = eventType === 'Taller' ? 'Taller de Innovación y Emprendimiento' : `${eventType} Institucional`;
+    }
 
     // Resolver fecha
     let startDate: Date;

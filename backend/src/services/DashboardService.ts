@@ -77,11 +77,27 @@ export class DashboardService {
       ];
 
       // Compilar talleres y actividades del día
-      const workshopsAndEvents = officialWorkshops.map(w => ({
-        title: w.title,
-        type: w.event_type,
-        location: w.location
-      }));
+      const workshopsAndEvents = officialWorkshops.map(w => {
+        let title = typeof w.title === 'string' ? w.title.trim() : '';
+        const type = w.event_type || 'Taller';
+        const titleLower = title.toLowerCase();
+
+        if (
+          titleLower === 'null' ||
+          titleLower === 'undefined' ||
+          titleLower === 'nulo' ||
+          titleLower === '' ||
+          titleLower === type.toLowerCase()
+        ) {
+          title = type === 'Taller' ? 'Taller de Innovación y Emprendimiento' : `${type} Institucional`;
+        }
+
+        return {
+          title,
+          type,
+          location: w.location
+        };
+      });
 
       // Compilar todos los pendientes generales (sin contar reuniones)
       const generalPendingTasks = pendingAgenda.filter(item =>
