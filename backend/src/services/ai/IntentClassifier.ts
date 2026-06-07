@@ -6,7 +6,7 @@ export interface ChatMessage {
 }
 
 export interface DetectedIntent {
-  intent: 'morning_summary' | 'get_pending_tasks' | 'create_event' | 'register_attendance' | 'generate_report' | 'create_meeting' | 'get_statistics' | 'get_overdue_projects' | 'create_document' | 'list_events' | 'list_pending_events' | 'list_tomorrow_events' | 'list_week_events' | 'list_today_events' | 'unknown';
+  intent: 'morning_summary' | 'greeting' | 'get_pending_tasks' | 'create_event' | 'register_attendance' | 'generate_report' | 'create_meeting' | 'get_statistics' | 'get_overdue_projects' | 'generate_convocatoria' | 'generate_minutes' | 'generate_official_letter' | 'list_events' | 'list_pending_events' | 'list_tomorrow_events' | 'list_week_events' | 'list_today_events' | 'unknown';
   confidence: number;
   entities: {
     event_type?: string;
@@ -27,6 +27,7 @@ const classificationSchema = {
       description: 'El nombre de la intención detectada de manera estricta.',
       enum: [
         'morning_summary',
+        'greeting',
         'get_pending_tasks',
         'create_event',
         'register_attendance',
@@ -34,7 +35,9 @@ const classificationSchema = {
         'create_meeting',
         'get_statistics',
         'get_overdue_projects',
-        'create_document',
+        'generate_convocatoria',
+        'generate_minutes',
+        'generate_official_letter',
         'list_events',
         'list_pending_events',
         'list_tomorrow_events',
@@ -57,7 +60,7 @@ const classificationSchema = {
         },
         topic: { 
           type: 'STRING' as any, 
-          description: 'Tema, título o nombre del proyecto/evento extraído del texto.' 
+          description: 'Tema, título o nombre del proyecto/evento extraído del texto. Debe ser una descripción completa de 1 a 5 palabras. Ej: "introducción a IA", "innovación digital", "robótica". NUNCA uses solo el tipo de evento.' 
         },
         date: { 
           type: 'STRING' as any, 
@@ -66,6 +69,22 @@ const classificationSchema = {
         time: { 
           type: 'STRING' as any, 
           description: 'Hora del evento (ej: 2 PM, 14:00, 10 AM).' 
+        },
+        location: { 
+          type: 'STRING' as any, 
+          description: 'Ubicación física o virtual extraída del texto (ej: Sala de conferencias BICU, Auditorio).' 
+        },
+        target_audience: { 
+          type: 'STRING' as any, 
+          description: 'Audiencia objetivo del evento (ej: "4to Año de Ingeniería en Sistemas", "Docentes", "Emprendedores Incubados"). Extraer si se mencionan estudiantes, carrera o año académico.' 
+        },
+        faculty: { 
+          type: 'STRING' as any, 
+          description: 'Facultad universitaria mencionada (ej: "Facultad de Ingeniería", "Facultad de Ciencias Económicas").' 
+        },
+        facilitator: { 
+          type: 'STRING' as any, 
+          description: 'Nombre del facilitador, ponente o instructor del evento si se menciona.' 
         }
       }
     }
@@ -107,30 +126,41 @@ export class IntentClassifier {
       Tu única tarea es clasificar el último mensaje de la Directora y extraer entidades si aplica.
       
       Lista de intenciones permitidas y sus disparadores típicos:
-      1. "morning_summary": Saludo matutino general o petición de resumen global de la jornada. Ej: "Buenos días", "Hola", "Resumen del día".
-      2. "get_pending_tasks": Pregunta explícita por tareas de la agenda personal pendientes o por hacer. Ej: "¿Qué tengo pendiente hoy?", "dame mis tareas pendientes", "ver pendientes".
-      3. "create_event": Orden para programar un taller, conferencia, asesoría, reunión oficial o competencia. Ej: "Crear taller de innovación viernes 2 PM", "Crear conferencia mañana 10 AM".
+      1. "morning_summary": Saludo matutino general o petición de resumen global de la jornada. Ej: "Buenos días", "Resumen del día", "Resumen diario".
+      2. "greeting": Saludos informales o simples para iniciar conversación de paso. Ej: "Hola", "Buenas tardes", "Hola Hermes", "buenas".
+      3. "get_pending_tasks": Pregunta explícita por tareas de la agenda personal pendientes o por hacer. Ej: "¿Qué tengo pendiente hoy?", "dame mis tareas pendientes", "ver pendientes".
+         - Debes extraer en entities si se menciona:
+           * "date": El día o período solicitado (ej: "hoy", "mañana", "viernes", "esta semana").
+      4. "create_event": Orden para programar un taller, conferencia, asesoría, reunión oficial o competencia.
          - Debes extraer en entities:
            * "event_type": El tipo de evento (taller, conferencia, asesoria, reunion, competencia).
-           * "topic": El tema o título del evento (ej: "innovación", "inteligencia artificial").
+           * "topic": El tema o título completo del evento (1-5 palabras, ej: "automatización con IA").
            * "date": El día (ej: "viernes", "mañana", "lunes").
            * "time": La hora (ej: "2 PM", "10 AM").
-      4. "register_attendance": Orden para registrar la asistencia de alumnos/participantes. Ej: "Registrar asistencia para taller de robótica", "asistencia taller".
+           * "location": La ubicación física si se menciona.
+           * "target_audience": La audiencia objetivo si se menciona (ej: "estudiantes de cuarto año de sistemas" → extraer literalmente como aparece).
+           * "faculty": La facultad si se menciona (ej: "Facultad de Ingeniería").
+           * "facilitator": El facilitador/ponente si se menciona.
+      5. "register_attendance": Orden para registrar la asistencia de alumnos/participantes. Ej: "Registrar asistencia para taller de robótica", "asistencia taller".
          - Debes extraer en entities:
            * "topic": El nombre del evento al cual registrar la asistencia.
-      5. "generate_report": Pedido de generar informes físicos (PDF/Word). Ej: "Genera informe del mes", "informe mensual", "reporte de taller".
+      6. "generate_report": Pedido de generar informes físicos (PDF/Word). Ej: "Genera informe del mes", "informe mensual", "reporte de taller".
          - Debes extraer en entities:
            * "topic": El tema del reporte (ej: "taller", "general", "mensual").
-      6. "create_meeting": Agendar una reunión con alguien. Ej: "Agendar reunión con Mentor X mañana a las 3 PM".
-      7. "get_statistics": Solicitar datos numéricos o demográficos. Ej: "Dame estadísticas de participantes", "número de alumnos inscritos".
-      8. "get_overdue_projects": Preguntar por proyectos atrasados o estado de emprendimientos. Ej: "proyectos atrasados", "bitácoras sin actualizar".
-      9. "create_document": Redactar un borrador de texto formal, acta o minuta. Ej: "Redactar minuta de reunión", "borrador de texto ejecutivo".
-      10. "list_events": Consultar lista general de actividades, talleres o eventos futuros planificados. Ej: "Cuáles son los talleres", "Qué talleres hay", "talleres programados", "mostrar talleres".
-      11. "list_pending_events": Consultar eventos institucionales que estén pendientes o planificados. Ej: "Qué talleres hay pendientes", "Actividades pendientes".
-      12. "list_tomorrow_events": Consultar talleres o eventos programados para el día de mañana. Ej: "Qué eventos hay mañana", "Qué actividades tenemos mañana".
-      13. "list_week_events": Consultar eventos programados para la semana actual. Ej: "Qué actividades hay esta semana", "Qué hay programado para esta semana".
-      14. "list_today_events": Consultar eventos programados para hoy. Ej: "Qué hay programado para hoy", "Qué talleres hay hoy".
-      15. "unknown": Saludos informales de paso, charlas casuales, agradecimientos, o instrucciones vagas que no encajen en lo anterior.
+      7. "create_meeting": Agendar una reunión con alguien. Ej: "Agendar reunión con Mentor X mañana a las 3 PM".
+      8. "get_statistics": Solicitar datos numéricos o demográficos. Ej: "Dame estadísticas de participantes", "número de alumnos inscritos".
+      9. "get_overdue_projects": Preguntar por proyectos atrasados o estado de emprendimientos. Ej: "proyectos atrasados", "bitácoras sin actualizar".
+      10. "generate_convocatoria": Crear o redactar una convocatoria institucional para un evento, taller o actividad. Ej: "Generar convocatoria", "Hacer convocatoria para taller de IA".
+          - Extrae en "topic" el nombre del evento para la convocatoria si se menciona.
+      11. "generate_minutes": Redactar la minuta, resumen o acta de una reunión. Ej: "Generar minuta", "Resume reunión", "Hacer minuta".
+          - Extrae en "topic" el tema de la reunión si se menciona.
+      12. "generate_official_letter": Redactar un oficio institucional o solicitud formal. Ej: "Crear oficio", "Redactar solicitud".
+      13. "list_events": Consultar lista general de actividades, talleres o eventos futuros planificados. Ej: "Cuáles son los talleres", "Qué talleres hay", "talleres programados", "mostrar talleres".
+      14. "list_pending_events": Consultar eventos institucionales que estén pendientes o planificados. Ej: "Qué talleres hay pendientes", "Actividades pendientes".
+      15. "list_tomorrow_events": Consultar talleres o eventos programados para el día de mañana. Ej: "Qué eventos hay mañana", "Qué actividades tenemos mañana".
+      16. "list_week_events": Consultar eventos programados para la semana actual. Ej: "Qué actividades hay esta semana", "Qué hay programado para esta semana".
+      17. "list_today_events": Consultar eventos programados para hoy. Ej: "Qué hay programado para hoy", "Qué talleres hay hoy".
+      18. "unknown": Saludos informales de paso, charlas casuales, agradecimientos, o instrucciones vagas que no encajen en lo anterior.
       
       Reglas de confianza (confidence):
       - Asigna un confidence score (0.0 a 1.0) que represente la seguridad de tu clasificación.
@@ -162,8 +192,8 @@ export class IntentClassifier {
         return {
           intent: 'unknown',
           confidence: detected.confidence,
-          entities: {},
-          response_text: 'MSc. Kenia Salomon, no estoy completamente seguro de la instrucción. ¿Podría detallar un poco más la acción que desea ejecutar?'
+          entities: detected.entities || {},
+          // Sin response_text: ActionRouter maneja la respuesta guiada
         };
       }
 

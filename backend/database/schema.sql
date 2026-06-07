@@ -52,6 +52,18 @@ CREATE TABLE IF NOT EXISTS events (
     location VARCHAR(255),
     capacity INTEGER DEFAULT 0,
     status event_status_enum DEFAULT 'Planificado',
+
+    -- Metadata institucional (Fase 1: Audiencia y Contexto)
+    target_audience VARCHAR(255),          -- Audiencia objetivo (ej: "4to Año de Ingeniería en Sistemas")
+    faculty VARCHAR(255),                  -- Facultad asociada (ej: "Facultad de Ingeniería")
+    facilitator VARCHAR(255),              -- Facilitador/ponente
+    career VARCHAR(255),                   -- Carrera académica relacionada
+    expected_attendees INTEGER DEFAULT 0,  -- Número estimado de asistentes
+
+    -- Metadata para informes (Fase 2: Preparación para reportes automáticos)
+    objectives TEXT,                       -- Objetivos del evento
+    metadata JSONB DEFAULT '{}'::jsonb,    -- Campo extensible (evidencias, observaciones, etc.)
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,4 +1,11 @@
-import { EventRepository } from '../repositories/EventRepository';
+import { EventRecord, EventRepository } from '../repositories/EventRepository';
+import { getCanonicalTitle } from '../utils/eventNormalizer';
+import { getUtcDateRangeForFilter } from '../utils/dateRangeCalculator';
+import {
+  formatAgendaHeader,
+  formatEventBlock,
+  getPeriodLabel
+} from '../utils/institutionalFormatter';
 
 export class EventQueryService {
   private eventRepo: EventRepository;
@@ -8,9 +15,6 @@ export class EventQueryService {
     this.eventRepo = new EventRepository();
   }
 
-  /**
-   * Obtiene la hora actual del servidor desplazada a la hora local del usuario (-06:00).
-   */
   private getLocalNow(): Date {
     const now = new Date();
     const serverOffsetMs = now.getTimezoneOffset() * 60000;
@@ -19,130 +23,64 @@ export class EventQueryService {
   }
 
   /**
-   * Retorna los límites de fecha en UTC para el filtro de consulta.
+   * Data Quality Layer: elimina registros basura antes de renderizar.
+   * Opera en memoria — no modifica Supabase.
    */
-  private getUtcDateRange(filter: 'today' | 'tomorrow' | 'week' | 'pending' | 'all'): { startUtc: Date; endUtc: Date } {
-    const now = new Date();
-    const serverOffsetMs = now.getTimezoneOffset() * 60000;
-    const userOffsetMs = this.userOffsetHours * 3600000;
-    
-    const localNow = new Date(now.getTime() + serverOffsetMs + userOffsetMs);
-    let localStart = new Date(localNow);
-    let localEnd = new Date(localNow);
+  private applyDataQuality(events: EventRecord[]): EventRecord[] {
+    const seenCanonical = new Set<string>();
+    return events.filter(event => {
+      // 1. Eliminar eventos sin título válido
+      const title = (event.title || '').trim();
+      if (!title || ['null','undefined','nulo'].includes(title.toLowerCase())) return false;
 
-    if (filter === 'today') {
-      localStart.setHours(0, 0, 0, 0);
-      localEnd.setHours(23, 59, 59, 999);
-    } else if (filter === 'tomorrow') {
-      localStart.setDate(localStart.getDate() + 1);
-      localStart.setHours(0, 0, 0, 0);
-      
-      localEnd.setDate(localEnd.getDate() + 1);
-      localEnd.setHours(23, 59, 59, 999);
-    } else if (filter === 'week') {
-      localStart.setHours(0, 0, 0, 0);
-      // Próximos 7 días a partir de hoy
-      localEnd.setDate(localEnd.getDate() + 7);
-      localEnd.setHours(23, 59, 59, 999);
-    } else {
-      // 'pending' o 'all': Desde hoy en adelante
-      localStart.setHours(0, 0, 0, 0);
-      localEnd.setFullYear(localEnd.getFullYear() + 2); // 2 años adelante
-    }
+      // 2. Ocultar eventos cancelados de la vista conversacional
+      if (event.status === 'Cancelado') return false;
 
-    const startUtc = new Date(localStart.getTime() - userOffsetMs - serverOffsetMs);
-    const endUtc = new Date(localEnd.getTime() - userOffsetMs - serverOffsetMs);
+      // 3. Eliminar duplicados semánticos en memoria (mismo título canónico)
+      const canonical = getCanonicalTitle(title);
+      if (seenCanonical.has(canonical)) return false;
+      seenCanonical.add(canonical);
 
-    return { startUtc, endUtc };
-  }
+      // 4. Sanitizar: filtrar registros con start_date inválido
+      if (!event.start_date || isNaN(new Date(event.start_date).getTime())) return false;
 
-  private getClockEmoji(hour: number): string {
-    const clockEmojis = ['🕛', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚'];
-    return clockEmojis[hour % 12];
-  }
-
-  private formatEventDate(dateStr: string, localNow: Date): string {
-    const eventDateUtc = new Date(dateStr);
-    const serverOffsetMs = eventDateUtc.getTimezoneOffset() * 60000;
-    const userOffsetMs = this.userOffsetHours * 3600000;
-    const eventDateLocal = new Date(eventDateUtc.getTime() + serverOffsetMs + userOffsetMs);
-
-    let hours = eventDateLocal.getHours();
-    const minutes = eventDateLocal.getMinutes();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    const minutesStr = minutes < 10 ? `0${minutes}` : minutes;
-    const timeStr = `${hours}:${minutesStr} ${ampm}`;
-
-    const todayDate = new Date(localNow);
-    todayDate.setHours(0, 0, 0, 0);
-    const eventCompareDate = new Date(eventDateLocal);
-    eventCompareDate.setHours(0, 0, 0, 0);
-
-    const dayDifference = Math.round((eventCompareDate.getTime() - todayDate.getTime()) / (24 * 3600000));
-    const clockEmoji = this.getClockEmoji(eventDateLocal.getHours());
-
-    const daysOfWeek = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-
-    if (dayDifference === 0) {
-      return `${clockEmoji} hoy ${timeStr}`;
-    } else if (dayDifference === 1) {
-      return `${clockEmoji} mañana ${timeStr}`;
-    } else if (dayDifference > 1 && dayDifference < 7) {
-      return `${clockEmoji} ${daysOfWeek[eventDateLocal.getDay()].toLowerCase()} ${timeStr}`;
-    } else {
-      const monthNames = [
-        'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
-      ];
-      return `${clockEmoji} ${eventDateLocal.getDate()} de ${monthNames[eventDateLocal.getMonth()]} ${timeStr}`;
-    }
+      return true;
+    });
   }
 
   /**
-   * Obtiene la lista de eventos filtrados y los retorna con el formato institucional requerido.
+   * Obtiene eventos filtrados, aplica Data Quality, y los retorna en formato institucional ejecutivo.
    */
-  async getFormattedEvents(filter: 'today' | 'tomorrow' | 'week' | 'pending' | 'all'): Promise<string> {
-    const { startUtc, endUtc } = this.getUtcDateRange(filter);
-    
-    // Si el filtro es "pending", buscamos únicamente los planificados
-    const statusFilter = filter === 'pending' ? 'Planificado' : undefined;
-    
-    const events = await this.eventRepo.getEventsInDateRange(
+  async getFormattedEvents(filter: string): Promise<string> {
+    const { startUtc, endUtc } = getUtcDateRangeForFilter(filter);
+    const statusFilter = filter.toLowerCase().trim() === 'pending' ? 'Planificado' : undefined;
+
+    const rawEvents = await this.eventRepo.getEventsInDateRange(
       startUtc.toISOString(),
       endUtc.toISOString(),
       statusFilter
     );
 
+    // Aplicar Data Quality Layer antes de renderizar
+    const events = this.applyDataQuality(rawEvents);
+
+    const periodLabel = getPeriodLabel(filter);
+    const header = formatAgendaHeader(periodLabel);
+
     if (events.length === 0) {
-      return 'No hay actividades programadas para ese período.';
+      return `${header}\n\n_No hay actividades programadas para ${periodLabel.toLowerCase()}._`;
     }
 
     const localNow = this.getLocalNow();
-    let responseText = '📅 *Talleres y Actividades Programadas*\n\n';
+    let responseText = `${header}\n\n`;
 
     events.forEach(event => {
-      let title = typeof event.title === 'string' ? event.title.trim() : '';
-      const type = event.event_type || 'Taller';
-      const titleLower = title.toLowerCase();
-
-      if (
-        titleLower === 'null' ||
-        titleLower === 'undefined' ||
-        titleLower === 'nulo' ||
-        titleLower === '' ||
-        titleLower === type.toLowerCase()
-      ) {
-        title = type === 'Taller' ? 'Taller de Innovación y Emprendimiento' : `${type} Institucional`;
-      }
-
-      const dateText = this.formatEventDate(event.start_date, localNow);
-      const locationText = event.location || 'Sin ubicación definida';
-      responseText += `* ${title}\n`;
-      responseText += `📍 ${locationText}\n`;
-      responseText += `${dateText}\n\n`;
+      responseText += formatEventBlock(event, filter, localNow, this.userOffsetHours);
+      responseText += '\n';
     });
+
+    // Sección de pendientes al final
+    responseText += `⚠️ *Pendientes:*\n_No existen pendientes institucionales._`;
 
     return responseText.trim();
   }

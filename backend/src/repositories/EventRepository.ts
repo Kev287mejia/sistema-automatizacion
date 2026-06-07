@@ -9,6 +9,15 @@ export interface EventRecord {
   end_date: string;
   location?: string;
   status?: 'Planificado' | 'En Progreso' | 'Finalizado' | 'Cancelado';
+  // Metadata institucional — Fase 1
+  target_audience?: string;
+  faculty?: string;
+  facilitator?: string;
+  career?: string;
+  expected_attendees?: number;
+  // Metadata para informes — Fase 2
+  objectives?: string;
+  metadata?: Record<string, any>;
 }
 
 export class EventRepository {

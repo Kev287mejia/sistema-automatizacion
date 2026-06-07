@@ -1,6 +1,8 @@
 import { EventRepository, EventRecord } from '../repositories/EventRepository';
 import { AgendaRepository, AgendaItem } from '../repositories/AgendaRepository';
 import { EntrepreneurshipRepository } from '../repositories/EntrepreneurshipRepository';
+import { normalizeEvent } from '../utils/eventNormalizer';
+import { getUtcDateRangeForFilter } from '../utils/dateRangeCalculator';
 
 export interface ExecutiveSummaryData {
   meetingsCount: number;
@@ -27,44 +29,40 @@ export class DashboardService {
    * Obtiene la estructura de datos cruda del resumen ejecutivo diario.
    * Sin formatear para Telegram (sin emojis ni Markdown), respetando la separación de lógica y presentación.
    */
-  async getDailyExecutiveSummary(): Promise<ExecutiveSummaryData> {
+  async getDailyExecutiveSummary(dateFilter: 'today' | 'tomorrow' | 'week' | 'all' | string = 'today'): Promise<ExecutiveSummaryData> {
     try {
+      const now = new Date();
+      const { startUtc, endUtc } = getUtcDateRangeForFilter(dateFilter);
+
       // 1. Obtener datos simultáneamente
-      const [todayEvents, pendingAgenda, activeProjects] = await Promise.all([
-        this.eventRepo.getTodayEvents(),
+      const [eventsInRange, pendingAgenda, activeProjects] = await Promise.all([
+        this.eventRepo.getEventsInDateRange(startUtc.toISOString(), endUtc.toISOString()),
         this.agendaRepo.getPendingAgenda(),
         this.entrepreneurshipRepo.getActiveEntrepreneurships()
       ]);
 
-      const now = new Date();
-
-      // 2. Clasificar reuniones vs actividades del día
+      // 2. Clasificar reuniones vs actividades del período
       // Eventos oficiales de tipo 'Reunión'
-      const officialMeetings = todayEvents.filter(e => e.event_type === 'Reunión');
+      const officialMeetings = eventsInRange.filter(e => e.event_type === 'Reunión');
       // Eventos oficiales que no son reuniones (ej. Talleres, Conferencias)
-      const officialWorkshops = todayEvents.filter(e => e.event_type !== 'Reunión');
+      const officialWorkshops = eventsInRange.filter(e => e.event_type !== 'Reunión');
 
-      // Tareas de la agenda que ocurren hoy
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-      const endOfToday = new Date();
-      endOfToday.setHours(23, 59, 59, 999);
-
-      const todayAgendaItems = pendingAgenda.filter(item => {
+      // Tareas de la agenda del período
+      const targetAgendaItems = pendingAgenda.filter(item => {
         const itemDate = new Date(item.start_time);
-        return itemDate >= startOfToday && itemDate <= endOfToday;
+        return itemDate >= startUtc && itemDate <= endUtc;
       });
 
-      // Tareas de hoy clasificadas como reunión por su título
-      const agendaMeetings = todayAgendaItems.filter(item =>
+      // Tareas del período clasificadas como reunión por su título
+      const agendaMeetings = targetAgendaItems.filter(item =>
         item.title.toLowerCase().includes('reunión')
       );
-      // Otras tareas de la agenda de hoy
-      const agendaTasksToday = todayAgendaItems.filter(item =>
+      // Otras tareas de la agenda del período
+      const agendaTasks = targetAgendaItems.filter(item =>
         !item.title.toLowerCase().includes('reunión')
       );
 
-      // Compilar reuniones del día
+      // Compilar reuniones del período
       const meetings = [
         ...officialMeetings.map(m => ({
           title: m.title,
@@ -76,38 +74,43 @@ export class DashboardService {
         }))
       ];
 
-      // Compilar talleres y actividades del día
+      // Compilar talleres y actividades del período usando el normalizador centralizado
       const workshopsAndEvents = officialWorkshops.map(w => {
-        let title = typeof w.title === 'string' ? w.title.trim() : '';
-        const type = w.event_type || 'Taller';
-        const titleLower = title.toLowerCase();
-
-        if (
-          titleLower === 'null' ||
-          titleLower === 'undefined' ||
-          titleLower === 'nulo' ||
-          titleLower === '' ||
-          titleLower === type.toLowerCase()
-        ) {
-          title = type === 'Taller' ? 'Taller de Innovación y Emprendimiento' : `${type} Institucional`;
+        const normalized = normalizeEvent(w.title, w.event_type, w.location);
+        
+        let timeStr = undefined;
+        if (w.start_date) {
+          const dt = new Date(w.start_date);
+          const serverOffsetMs = dt.getTimezoneOffset() * 60000;
+          const userOffsetMs = -6 * 3600000; // Hardcoded user offset
+          const localDt = new Date(dt.getTime() + serverOffsetMs + userOffsetMs);
+          
+          let h = localDt.getHours();
+          const m = localDt.getMinutes();
+          const ampm = h >= 12 ? 'PM' : 'AM';
+          h = h % 12 || 12;
+          timeStr = `${h}:${m < 10 ? '0'+m : m} ${ampm}`;
         }
 
         return {
-          title,
-          type,
-          location: w.location
+          title: normalized.title,
+          type: normalized.type,
+          location: normalized.location,
+          time: timeStr,
+          target_audience: (w as any).target_audience
         };
       });
 
-      // Compilar todos los pendientes generales (sin contar reuniones)
-      const generalPendingTasks = pendingAgenda.filter(item =>
-        !item.title.toLowerCase().includes('reunión')
-      );
-
-      const pendingTasks = generalPendingTasks.map(t => ({
+      // Compilar los pendientes generales del período
+      const pendingTasks = agendaTasks.map(t => ({
         title: t.title,
         due_date: t.start_time
       }));
+
+      // Para calcular alertas institucionales, seguimos usando todas las tareas pendientes generales
+      const generalPendingTasks = pendingAgenda.filter(item =>
+        !item.title.toLowerCase().includes('reunión')
+      );
 
       // 3. Calcular Alertas Institucionales
       const alerts: string[] = [];

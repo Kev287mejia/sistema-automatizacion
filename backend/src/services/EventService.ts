@@ -1,4 +1,5 @@
 import { EventRepository } from '../repositories/EventRepository';
+import { normalizeEvent, getCanonicalTitle, normalizeAudience } from '../utils/eventNormalizer';
 
 export class EventService {
   private eventRepo: EventRepository;
@@ -24,18 +25,14 @@ export class EventService {
     else if (typeLower.includes('asesor')) eventType = 'Asesoría';
     else if (typeLower.includes('competencia')) eventType = 'Competencia';
 
-    // Sanitizar título con fallbacks inteligentes
-    let title = typeof rawTitle === 'string' ? rawTitle.trim() : '';
-    const titleLower = title.toLowerCase();
-    if (
-      titleLower === 'null' ||
-      titleLower === 'undefined' ||
-      titleLower === 'nulo' ||
-      titleLower === '' ||
-      titleLower === eventType.toLowerCase()
-    ) {
-      title = eventType === 'Taller' ? 'Taller de Innovación y Emprendimiento' : `${eventType} Institucional`;
-    }
+    // Normalizar y sanitizar título y ubicación usando el normalizador centralizado
+    const normalized = normalizeEvent(rawTitle, eventType, params.location);
+
+    // Normalizar audiencia y extraer metadata institucional
+    const rawAudience = params.target_audience || params.audience || params.participants;
+    const targetAudience = normalizeAudience(rawAudience);
+    const faculty = params.faculty ? (params.faculty.trim().charAt(0).toUpperCase() + params.faculty.trim().slice(1)) : undefined;
+    const facilitator = params.facilitator ? params.facilitator.trim() : undefined;
 
     // Resolver fecha
     let startDate: Date;
@@ -46,23 +43,58 @@ export class EventService {
     }
 
     try {
+      // Validar duplicaciones semánticas en el mismo día antes de insertar
+      const startOfDay = new Date(startDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(startDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const existingEvents = await this.eventRepo.getEventsInDateRange(
+        startOfDay.toISOString(),
+        endOfDay.toISOString()
+      );
+
+      const newCanonical = getCanonicalTitle(normalized.title);
+      const duplicate = existingEvents.find(e => getCanonicalTitle(e.title) === newCanonical);
+
+      if (duplicate) {
+        return `⚠️ Ya existe un evento similar registrado para esa fecha: "${duplicate.title}".`;
+      }
+
       // Duración por defecto: 2 horas
       const endDate = new Date(startDate);
       endDate.setHours(endDate.getHours() + 2);
 
       const newEvent = await this.eventRepo.createEvent({
-        title: title.charAt(0).toUpperCase() + title.slice(1),
+        title: normalized.title,
         event_type: eventType,
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
-        status: 'Planificado'
+        location: normalized.location,
+        status: 'Planificado',
+        target_audience: targetAudience,
+        faculty: faculty,
+        facilitator: facilitator
       });
 
-      return `✅ *Evento Creado Exitosamente*\n\n` +
-             `*Tipo:* ${eventType}\n` +
-             `*Título:* ${newEvent.title}\n` +
-             `*Fecha y Hora:* ${startDate.toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' })}\n\n` +
-             `Se ha registrado en la base de datos institucional.`;
+      let confirmMsg = `✅ *Evento Registrado*\n\n` +
+        `📍 *${eventType}:* ${newEvent.title}\n` +
+        `📅 *Fecha:* ${startDate.toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' })}\n`;
+      if (normalized.location && normalized.location !== 'Ubicación pendiente de definir') {
+        confirmMsg += `📍 *Lugar:* ${normalized.location}\n`;
+      }
+      if (targetAudience) {
+        confirmMsg += `👥 *Audiencia:* ${targetAudience}\n`;
+      }
+      if (faculty) {
+        confirmMsg += `🏗️ *Facultad:* ${faculty}\n`;
+      }
+      if (facilitator) {
+        confirmMsg += `🎓 *Facilitador:* ${facilitator}\n`;
+      }
+      confirmMsg += `\n_Registrado en la base de datos institucional._`;
+
+      return confirmMsg;
     } catch (error: any) {
       console.error('Error al guardar evento:', error);
       return `⚠️ Ocurrió un error al guardar el evento en Supabase.`;
