@@ -11,7 +11,7 @@ export class EventService {
    * Crea un evento a partir de parámetros estructurados extraídos por Gemini.
    */
   async processEventCreation(params: any): Promise<string> {
-    const title = params.event_title || params.title;
+    const title = params.event_title || params.title || params.topic;
     const type = params.event_type || params.type || 'Taller';
     const rawDay = params.date || 'hoy';
     const rawTime = params.time || '12 PM';

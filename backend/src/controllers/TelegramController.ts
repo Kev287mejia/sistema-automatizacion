@@ -23,13 +23,14 @@ export class TelegramController {
                              `Soy su asistente cognitivo. Puede hablarme de forma natural.\n\n` +
                              `_Ejemplos:_\n` +
                              `👉 "Buenos días"\n` +
-                             `👉 "Registra asistencia del taller IA"\n` +
+                             `👉 "¿Qué tengo pendiente hoy?"\n` +
+                             `👉 "Crear taller de innovación viernes 2 PM"\n` +
                              `👉 "Genera un informe del mes"`;
                              
       ctx.reply(welcomeMessage, { parse_mode: 'Markdown' });
     });
 
-    // Orquestador Cognitivo Desacoplado
+    // Orquestador Cognitivo Desacoplado v2
     this.bot.on('text', async (ctx) => {
       const text = ctx.message.text;
       if (text.startsWith('/')) return;
@@ -41,7 +42,7 @@ export class TelegramController {
       if (!ctx.session.history) ctx.session.history = [];
       const history: ChatMessage[] = ctx.session.history;
 
-      // 2. Detección de Intención (NLP puro con Gemini)
+      // 2. Detección de Intención (NLP puro con Gemini y responseSchema)
       const detected = await this.intentClassifier.classify(text, history);
 
       // Guardar el mensaje del usuario en el historial
@@ -64,7 +65,7 @@ export class TelegramController {
           botResponseText = `Entrando a registro de asistencia para *${result.data.eventTitle}*...`;
           await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
         } else if (sceneName === 'registerScene') {
-          ctx.scene.enter('registerScene');
+          await ctx.scene.enter('registerScene');
           botResponseText = 'Iniciando flujo de registro de participante...';
           await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
         }
@@ -99,8 +100,49 @@ export class TelegramController {
             botResponseText += `_Sin alertas críticas hoy._\n`;
           }
           await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
+        } else if (result.intent === 'get_pending_tasks') {
+          const data = result.data;
+          botResponseText = `📋 *Pendientes y Actividades de la Agenda - MSc. Kenia Salomon*\n\n`;
+          
+          botResponseText += `🤝 *Reuniones Programadas:*\n`;
+          if (data.meetings && data.meetings.length > 0) {
+            data.meetings.forEach((m: any) => {
+              botResponseText += `• ${m.title} (${m.time || 'Sin hora'})\n`;
+            });
+          } else {
+            botResponseText += `_No hay reuniones programadas hoy._\n`;
+          }
+          
+          botResponseText += `\n📅 *Eventos / Talleres Oficiales:*\n`;
+          if (data.workshopsAndEvents && data.workshopsAndEvents.length > 0) {
+            data.workshopsAndEvents.forEach((w: any) => {
+              botResponseText += `• [${w.type}] ${w.title} - ${w.location || 'Sin ubicación'}\n`;
+            });
+          } else {
+            botResponseText += `_No hay actividades oficiales programadas hoy._\n`;
+          }
+
+          botResponseText += `\n📋 *Pendientes en Agenda General:*\n`;
+          if (data.pendingTasks && data.pendingTasks.length > 0) {
+            data.pendingTasks.forEach((t: any) => {
+              botResponseText += `• ${t.title}\n`;
+            });
+          } else {
+            botResponseText += `_Bandeja de pendientes limpia._\n`;
+          }
+
+          botResponseText += `\n⚠️ *Alertas de la Jornada:*\n`;
+          if (data.alerts && data.alerts.length > 0) {
+            data.alerts.forEach((a: string) => {
+              botResponseText += `• ${a}\n`;
+            });
+          } else {
+            botResponseText += `_Sin alertas de inactividad o vencimientos hoy._\n`;
+          }
+
+          await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
         } else {
-          // Respuestas directas conversacionales u otras intenciones
+          // Respuestas directas conversacionales, creación de eventos u otras intenciones
           botResponseText = result.fallbackText || 'No se pudo procesar la solicitud.';
           await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
         }
