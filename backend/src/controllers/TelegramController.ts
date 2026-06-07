@@ -1,31 +1,16 @@
 import { Telegraf } from 'telegraf';
-import { DashboardService } from '../services/DashboardService';
-import { EventService } from '../services/EventService';
-import { EventRepository } from '../repositories/EventRepository';
-// Importar ChatMessage desde IntentService
-import { IntentService, ChatMessage } from '../services/IntentService';
-import { AIAnalysisService } from '../services/AIAnalysisService';
-
-// Extender la sesión de Telegraf para incluir el historial
-interface CustomSession {
-  history?: ChatMessage[];
-}
+import { IntentClassifier, ChatMessage } from '../services/ai/IntentClassifier';
+import { ActionRouter } from '../routers/ActionRouter';
 
 export class TelegramController {
   private bot: Telegraf<any>;
-  private dashboardService: DashboardService;
-  private eventService: EventService;
-  private eventRepo: EventRepository;
-  private intentService: IntentService;
-  private aiAnalysisService: AIAnalysisService;
+  private intentClassifier: IntentClassifier;
+  private actionRouter: ActionRouter;
 
   constructor(botInstance: Telegraf<any>) {
     this.bot = botInstance;
-    this.dashboardService = new DashboardService();
-    this.eventService = new EventService();
-    this.eventRepo = new EventRepository();
-    this.intentService = new IntentService();
-    this.aiAnalysisService = new AIAnalysisService();
+    this.intentClassifier = new IntentClassifier();
+    this.actionRouter = new ActionRouter();
     this.initializeRoutes();
   }
 
@@ -37,118 +22,86 @@ export class TelegramController {
       const welcomeMessage = `🏛️ *Hermes Nivel Ejecutivo Activado*\n\n` +
                              `Soy su asistente cognitivo. Puede hablarme de forma natural.\n\n` +
                              `_Ejemplos:_\n` +
-                             `👉 "¿Qué tengo pendiente?"\n` +
+                             `👉 "Buenos días"\n` +
                              `👉 "Registra asistencia del taller IA"\n` +
                              `👉 "Genera un informe del mes"`;
                              
       ctx.reply(welcomeMessage, { parse_mode: 'Markdown' });
     });
 
-    // Orquestador Cognitivo
+    // Orquestador Cognitivo Desacoplado
     this.bot.on('text', async (ctx) => {
       const text = ctx.message.text;
       if (text.startsWith('/')) return;
 
       await ctx.sendChatAction('typing');
 
-      // 1. Recuperar o inicializar Historial (Ventana deslizante de 6 mensajes)
+      // 1. Recuperar o inicializar Historial (Ventana de 6 mensajes)
       ctx.session = ctx.session || {};
       if (!ctx.session.history) ctx.session.history = [];
       const history: ChatMessage[] = ctx.session.history;
 
-      // 2. Clasificación Cognitiva (pasando el historial)
-      const analysis = await this.intentService.processMessage(text, history);
+      // 2. Detección de Intención (NLP puro con Gemini)
+      const detected = await this.intentClassifier.classify(text, history);
 
       // Guardar el mensaje del usuario en el historial
       history.push({ role: 'user', content: text });
 
+      // 3. Enrutamiento de la Acción (Lógica de Negocio y Base de Datos)
+      const result = await this.actionRouter.route(detected, text);
+
       let botResponseText = '';
 
-      // 3. Router Ejecutivo
-      switch (analysis.intent) {
-        case 'REGISTER_PARTICIPANT':
+      // 4. Capa de Presentación (Formateo y Envío en Telegram)
+      if (result.actionType === 'scene') {
+        const sceneName = result.data.sceneName;
+        if (sceneName === 'attendanceScene') {
+          ctx.scene.session.state.eventId = result.data.eventId;
+          ctx.scene.session.state.eventTitle = result.data.eventTitle;
+          ctx.scene.enter('attendanceScene');
+          botResponseText = `Entrando a registro de asistencia para *${result.data.eventTitle}*...`;
+          await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
+        } else if (sceneName === 'registerScene') {
           ctx.scene.enter('registerScene');
           botResponseText = 'Iniciando flujo de registro de participante...';
-          break;
-
-        case 'ATTENDANCE':
-          const eventName = analysis.parameters?.event_name;
-          if (!eventName) {
-            botResponseText = 'No me quedó claro a qué evento deseas registrar la asistencia. ¿Podrías indicarme el nombre?';
-            await ctx.reply(botResponseText);
-          } else {
-            try {
-              const event = await this.eventRepo.findEventByName(eventName);
-              if (!event) {
-                botResponseText = `❌ No encontré ningún evento relacionado a "${eventName}".`;
-                await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
-              } else {
-                ctx.scene.session.state.eventId = event.id;
-                ctx.scene.session.state.eventTitle = event.title;
-                ctx.scene.enter('attendanceScene');
-                botResponseText = `Entrando a registro de asistencia para ${event.title}...`;
-              }
-            } catch (error) {
-              botResponseText = '⚠️ Error buscando el evento.';
-              await ctx.reply(botResponseText);
-            }
-          }
-          break;
-
-        case 'EVENT_CREATION':
-          // Pasamos el texto directo para que el regex / lógica de creación lo atrape
-          // (Si quisiéramos, podríamos pasar los parámetros directos, pero reusamos el parser).
-          botResponseText = await this.eventService.processEventCreation(text);
           await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
-          break;
-
-        case 'SUMMARY_AND_AGENDA':
-          botResponseText = await this.dashboardService.generateDailySummary();
-          await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
-          break;
-
-        case 'REPORTS':
-          botResponseText = '⚙️ *Generando Informe Institucional...*\nRecopilando datos y redactando. Esto tomará unos segundos.';
-          const loadingMsg = await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
+        }
+      } else if (result.actionType === 'document') {
+        const loadingMsg = await ctx.reply('⚙️ *Generando Informe Institucional...*\nRecopilando datos y redactando. Esto tomará unos segundos.', { parse_mode: 'Markdown' });
+        try {
+          const { pdfBuffer, docxBuffer, topic } = result.data;
+          await ctx.replyWithDocument({ source: pdfBuffer, filename: `Informe_${topic.replace(/\s+/g, '_')}.pdf` });
+          await ctx.replyWithDocument({ source: docxBuffer, filename: `Informe_${topic.replace(/\s+/g, '_')}.docx` });
+          botResponseText = '✅ *Informes generados exitosamente.*';
+          await ctx.telegram.editMessageText(ctx.chat?.id, loadingMsg.message_id, undefined, botResponseText, { parse_mode: 'Markdown' });
+        } catch (e) {
+          botResponseText = '❌ Hubo un error al compilar los informes físicos.';
+          await ctx.telegram.editMessageText(ctx.chat?.id, loadingMsg.message_id, undefined, botResponseText, { parse_mode: 'Markdown' });
+        }
+      } else {
+        // actionType === 'reply'
+        if (result.intent === 'morning_summary') {
+          const data = result.data;
+          botResponseText = `Buenos días, Directora.\n\n`;
+          botResponseText += `*Resumen del día:*\n`;
+          botResponseText += `* ${data.meetingsCount} reunión${data.meetingsCount !== 1 ? 'es' : ''} programada${data.meetingsCount !== 1 ? 's' : ''}\n`;
+          botResponseText += `* ${data.workshopsCount} taller${data.workshopsCount !== 1 ? 'es' : ''} de innovación\n`;
+          botResponseText += `* ${data.pendingTasksCount} pendiente${data.pendingTasksCount !== 1 ? 'es' : ''} institucional${data.pendingTasksCount !== 1 ? 'es' : ''}\n\n`;
           
-          try {
-            const topic = analysis.parameters?.topic || analysis.parameters?.event_name || 'General';
-            const { ReportGeneratorService } = require('../services/ReportGeneratorService');
-            const reportService = new ReportGeneratorService();
-            const reportData = await reportService.generateInstitutionalReport(topic);
-            
-            if (reportData) {
-              await ctx.replyWithDocument({ source: reportData.pdfBuffer, filename: `Informe_${topic.replace(/\s+/g, '_')}.pdf` });
-              await ctx.replyWithDocument({ source: reportData.docxBuffer, filename: `Informe_${topic.replace(/\s+/g, '_')}.docx` });
-              botResponseText = '✅ *Informes generados exitosamente.*';
-              await ctx.telegram.editMessageText(ctx.chat?.id, loadingMsg.message_id, undefined, botResponseText, { parse_mode: 'Markdown' });
-            }
-          } catch (e) {
-            botResponseText = '❌ Hubo un error al compilar los informes físicos.';
-            await ctx.telegram.editMessageText(ctx.chat?.id, loadingMsg.message_id, undefined, botResponseText, { parse_mode: 'Markdown' });
+          botResponseText += `*Alertas:*\n`;
+          if (data.alerts && data.alerts.length > 0) {
+            data.alerts.forEach((alert: string) => {
+              botResponseText += `* ${alert}\n`;
+            });
+          } else {
+            botResponseText += `_Sin alertas críticas hoy._\n`;
           }
-          break;
-
-        case 'PROJECT_TRACKING':
-          botResponseText = '📌 *Módulo de Seguimiento:* He solicitado a la base de datos el estado de los proyectos atrasados. (Mock de Emprendimientos).';
           await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
-          break;
-
-        case 'SCHEDULE_MENTORING':
-          botResponseText = `✅ *Mentoría Programada*\nHe asignado una sesión para *${analysis.parameters?.project_name || 'el proyecto'}* con *${analysis.parameters?.mentor || 'el mentor asignado'}*.`;
+        } else {
+          // Respuestas directas conversacionales u otras intenciones
+          botResponseText = result.fallbackText || 'No se pudo procesar la solicitud.';
           await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
-          break;
-
-        case 'BROADCAST_CALL':
-          botResponseText = '📢 *Convocatoria:* He preparado el borrador del comunicado masivo. Por favor, confírmalo en el panel web.';
-          await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
-          break;
-
-        case 'UNKNOWN_OR_CASUAL':
-        default:
-          botResponseText = analysis.response_text || 'No entendí bien la solicitud.';
-          await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
-          break;
+        }
       }
 
       // Guardar la respuesta del bot en el historial (max 6 mensajes)
@@ -160,10 +113,7 @@ export class TelegramController {
     });
 
     this.bot.catch((err: any, ctx) => {
-      console.error(`Error procesando mensaje:`, err);
-      if (err.cause) {
-        console.error(`Telegram bot catch cause:`, err.cause);
-      }
+      console.error(`Error procesando mensaje en TelegramController:`, err);
       ctx.reply('⚠️ Error interno del sistema conversacional.').catch((e: any) => {
         console.error('Failed to send error reply to Telegram:', e);
       });
