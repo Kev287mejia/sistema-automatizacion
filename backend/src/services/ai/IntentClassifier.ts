@@ -6,7 +6,7 @@ export interface ChatMessage {
 }
 
 export interface DetectedIntent {
-  intent: 'morning_summary' | 'greeting' | 'get_pending_tasks' | 'create_event' | 'register_attendance' | 'generate_report' | 'create_meeting' | 'get_statistics' | 'get_overdue_projects' | 'generate_convocatoria' | 'generate_minutes' | 'generate_official_letter' | 'list_events' | 'list_pending_events' | 'list_tomorrow_events' | 'list_week_events' | 'list_today_events' | 'unknown';
+  intent: 'morning_summary' | 'greeting' | 'get_pending_tasks' | 'create_event' | 'register_attendance' | 'student_registration' | 'generate_report' | 'generate_statistics_excel' | 'create_meeting' | 'get_statistics' | 'get_overdue_projects' | 'generate_convocatoria' | 'generate_minutes' | 'generate_official_letter' | 'list_events' | 'list_pending_events' | 'list_tomorrow_events' | 'list_week_events' | 'list_today_events' | 'unknown';
   confidence: number;
   entities: {
     event_type?: string;
@@ -31,7 +31,9 @@ const classificationSchema = {
         'get_pending_tasks',
         'create_event',
         'register_attendance',
+        'student_registration',
         'generate_report',
+        'generate_statistics_excel',
         'create_meeting',
         'get_statistics',
         'get_overdue_projects',
@@ -141,26 +143,30 @@ export class IntentClassifier {
            * "target_audience": La audiencia objetivo si se menciona (ej: "estudiantes de cuarto año de sistemas" → extraer literalmente como aparece).
            * "faculty": La facultad si se menciona (ej: "Facultad de Ingeniería").
            * "facilitator": El facilitador/ponente si se menciona.
-      5. "register_attendance": Orden para registrar la asistencia de alumnos/participantes. Ej: "Registrar asistencia para taller de robótica", "asistencia taller".
+      5. "register_attendance": Orden para registrar la asistencia de alumnos/participantes (Uso directivo). Ej: "Registrar asistencia para taller de robótica", "asistencia taller".
          - Debes extraer en entities:
            * "topic": El nombre del evento al cual registrar la asistencia.
-      6. "generate_report": Pedido de generar informes físicos (PDF/Word). Ej: "Genera informe del mes", "informe mensual", "reporte de taller".
+      6. "student_registration": Intención del estudiante para inscribirse o registrarse en un taller/evento. Ej: "Registrar participante", "Inscribirme al taller", "Quiero registrarme al evento de IA".
+      7. "generate_report": Pedido de generar informes físicos (PDF/Word). Ej: "Genera informe del mes", "informe mensual", "reporte de taller".
          - Debes extraer en entities:
            * "topic": El tema del reporte (ej: "taller", "general", "mensual").
-      7. "create_meeting": Agendar una reunión con alguien. Ej: "Agendar reunión con Mentor X mañana a las 3 PM".
-      8. "get_statistics": Solicitar datos numéricos o demográficos. Ej: "Dame estadísticas de participantes", "número de alumnos inscritos".
-      9. "get_overdue_projects": Preguntar por proyectos atrasados o estado de emprendimientos. Ej: "proyectos atrasados", "bitácoras sin actualizar".
-      10. "generate_convocatoria": Crear o redactar una convocatoria institucional para un evento, taller o actividad. Ej: "Generar convocatoria", "Hacer convocatoria para taller de IA".
+      8. "generate_statistics_excel": Solicitud específica para generar el estadístico oficial de participantes en formato Excel. Ej: "Generar estadístico del taller de IA", "Excel de asistencia del evento", "Estadísticas en excel del taller".
+         - Debes extraer en entities:
+           * "topic": El nombre del evento (ej: "taller de IA").
+      9. "create_meeting": Agendar una reunión con alguien. Ej: "Agendar reunión con Mentor X mañana a las 3 PM".
+      10. "get_statistics": Solicitar datos numéricos o demográficos. Ej: "Dame estadísticas de participantes", "número de alumnos inscritos".
+      11. "get_overdue_projects": Preguntar por proyectos atrasados o estado de emprendimientos. Ej: "proyectos atrasados", "bitácoras sin actualizar".
+      12. "generate_convocatoria": Crear o redactar una convocatoria institucional para un evento, taller o actividad. Ej: "Generar convocatoria", "Hacer convocatoria para taller de IA".
           - Extrae en "topic" el nombre del evento para la convocatoria si se menciona.
-      11. "generate_minutes": Redactar la minuta, resumen o acta de una reunión. Ej: "Generar minuta", "Resume reunión", "Hacer minuta".
+      13. "generate_minutes": Redactar la minuta, resumen o acta de una reunión. Ej: "Generar minuta", "Resume reunión", "Hacer minuta".
           - Extrae en "topic" el tema de la reunión si se menciona.
-      12. "generate_official_letter": Redactar un oficio institucional o solicitud formal. Ej: "Crear oficio", "Redactar solicitud".
-      13. "list_events": Consultar lista general de actividades, talleres o eventos futuros planificados. Ej: "Cuáles son los talleres", "Qué talleres hay", "talleres programados", "mostrar talleres".
-      14. "list_pending_events": Consultar eventos institucionales que estén pendientes o planificados. Ej: "Qué talleres hay pendientes", "Actividades pendientes".
-      15. "list_tomorrow_events": Consultar talleres o eventos programados para el día de mañana. Ej: "Qué eventos hay mañana", "Qué actividades tenemos mañana".
-      16. "list_week_events": Consultar eventos programados para la semana actual. Ej: "Qué actividades hay esta semana", "Qué hay programado para esta semana".
-      17. "list_today_events": Consultar eventos programados para hoy. Ej: "Qué hay programado para hoy", "Qué talleres hay hoy".
-      18. "unknown": Saludos informales de paso, charlas casuales, agradecimientos, o instrucciones vagas que no encajen en lo anterior.
+      14. "generate_official_letter": Redactar un oficio institucional o solicitud formal. Ej: "Crear oficio", "Redactar solicitud".
+      15. "list_events": Consultar lista general de actividades, talleres o eventos futuros planificados. Ej: "Cuáles son los talleres", "Qué talleres hay", "talleres programados", "mostrar talleres".
+      16. "list_pending_events": Consultar eventos institucionales que estén pendientes o planificados. Ej: "Qué talleres hay pendientes", "Actividades pendientes".
+      17. "list_tomorrow_events": Consultar talleres o eventos programados para el día de mañana. Ej: "Qué eventos hay mañana", "Qué actividades tenemos mañana".
+      18. "list_week_events": Consultar eventos programados para la semana actual. Ej: "Qué actividades hay esta semana", "Qué hay programado para esta semana".
+      19. "list_today_events": Consultar eventos programados para hoy. Ej: "Qué hay programado para hoy", "Qué talleres hay hoy".
+      20. "unknown": Saludos informales de paso, charlas casuales, agradecimientos, o instrucciones vagas que no encajen en lo anterior.
       
       Reglas de confianza (confidence):
       - Asigna un confidence score (0.0 a 1.0) que represente la seguridad de tu clasificación.

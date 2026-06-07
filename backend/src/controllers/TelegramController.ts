@@ -36,6 +36,16 @@ export class TelegramController {
         const text = ctx.message.text;
         if (text.startsWith('/')) return;
 
+        // Auto-configurar DIRECTOR_CHAT_ID si no existe
+        if (!process.env.DIRECTOR_CHAT_ID) {
+          const fs = require('fs');
+          const path = require('path');
+          const envPath = path.resolve(__dirname, '../../.env');
+          fs.appendFileSync(envPath, `\nDIRECTOR_CHAT_ID=${ctx.chat.id}\n`);
+          process.env.DIRECTOR_CHAT_ID = ctx.chat.id.toString();
+          console.log(`✅ DIRECTOR_CHAT_ID guardado automáticamente en .env: ${ctx.chat.id}`);
+        }
+
         await ctx.sendChatAction('typing');
 
         // 1. Recuperar o inicializar Historial (Ventana de 6 mensajes)
@@ -71,6 +81,13 @@ export class TelegramController {
             };
             botResponseText = `Entrando a registro de asistencia para *${result.data.eventTitle}*...`;
             await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
+          } else if (sceneName === 'studentRegistrationScene') {
+            await ctx.scene.enter('studentRegistrationScene');
+            ctx.scene.session.state = {
+              eventId: result.data.eventId,
+              eventTitle: result.data.eventTitle
+            };
+            botResponseText = 'Iniciando formulario de registro estudiantil...';
           } else if (sceneName === 'registerScene') {
             await ctx.scene.enter('registerScene');
             botResponseText = 'Iniciando flujo de registro de participante...';
@@ -79,13 +96,22 @@ export class TelegramController {
         } else if (result.actionType === 'document') {
           const loadingMsg = await ctx.reply('⚙️ *Generando Informe Institucional...*\nRecopilando datos y redactando. Esto tomará unos segundos.', { parse_mode: 'Markdown' });
           try {
-            const { pdfBuffer, docxBuffer, topic } = result.data;
-            await ctx.replyWithDocument({ source: pdfBuffer, filename: `Informe_${topic.replace(/\s+/g, '_')}.pdf` });
-            await ctx.replyWithDocument({ source: docxBuffer, filename: `Informe_${topic.replace(/\s+/g, '_')}.docx` });
-            botResponseText = '✅ *Informes generados exitosamente.*';
+            const { pdfBuffer, docxBuffer, xlsxBuffer, filename, topic } = result.data;
+            
+            if (xlsxBuffer) {
+              await ctx.replyWithDocument({ source: xlsxBuffer, filename: filename || `Estadistico_${topic.replace(/\s+/g, '_')}.xlsx` });
+            }
+            if (pdfBuffer) {
+              await ctx.replyWithDocument({ source: pdfBuffer, filename: `Informe_${topic.replace(/\s+/g, '_')}.pdf` });
+            }
+            if (docxBuffer) {
+              await ctx.replyWithDocument({ source: docxBuffer, filename: `Informe_${topic.replace(/\s+/g, '_')}.docx` });
+            }
+            
+            botResponseText = '✅ *Documentos generados exitosamente.*';
             await ctx.telegram.editMessageText(ctx.chat?.id, loadingMsg.message_id, undefined, botResponseText, { parse_mode: 'Markdown' });
           } catch (e) {
-            botResponseText = '❌ Hubo un error al compilar los informes físicos.';
+            botResponseText = '❌ Hubo un error al compilar los documentos físicos.';
             await ctx.telegram.editMessageText(ctx.chat?.id, loadingMsg.message_id, undefined, botResponseText, { parse_mode: 'Markdown' });
           }
         } else {

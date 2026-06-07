@@ -1,0 +1,62 @@
+{
+  "name": "Reporte Institucional Programado",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 17 * * 5"
+            }
+          ]
+        }
+      },
+      "id": "e2f7b8d1-4321-4f1a-b30a-12c8a1e679b3",
+      "name": "Schedule Trigger (Viernes 5 PM)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/webhooks/n8n/reports",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}"
+      },
+      "id": "75c32b9a-1122-494a-8d19-5d6efd2089b2",
+      "name": "Llamar API Backend (Reportes)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        450,
+        300
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger (Viernes 5 PM)": {
+      "main": [
+        [
+          {
+            "node": "Llamar API Backend (Reportes)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c4d16279-d5c6-4db0-a3bc-eb034d6fc2e6",
+  "id": "1"
+}

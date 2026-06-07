@@ -2,6 +2,7 @@ import { Telegraf, session, Scenes } from 'telegraf';
 import dotenv from 'dotenv';
 import { registerScene } from './scenes/registerScene';
 import { attendanceScene } from './scenes/attendanceScene';
+import { studentRegistrationScene } from './scenes/studentRegistrationScene';
 import { SessionRepository } from '../../repositories/SessionRepository';
 import { logger } from '../../utils/logger';
 
@@ -16,7 +17,7 @@ if (!token) {
 export const bot = new Telegraf<any>(token || 'dummy_token');
 bot.telegram.webhookReply = false;
 
-const stage = new Scenes.Stage<any>([registerScene, attendanceScene]);
+const stage = new Scenes.Stage<any>([registerScene, attendanceScene, studentRegistrationScene]);
 const sessionRepo = new SessionRepository();
 
 const supabaseSessionStore = {

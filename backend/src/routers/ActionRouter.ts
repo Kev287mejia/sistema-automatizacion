@@ -4,6 +4,7 @@ import { EventService } from '../services/EventService';
 import { EventRepository } from '../repositories/EventRepository';
 import { ReportGeneratorService } from '../services/ReportGeneratorService';
 import { EventQueryService } from '../services/EventQueryService';
+import { ExcelService } from '../services/ExcelService';
 
 export interface RouteResult {
   success: boolean;
@@ -20,6 +21,7 @@ export class ActionRouter {
   private eventRepo: EventRepository;
   private reportService: ReportGeneratorService;
   private eventQueryService: EventQueryService;
+  private excelService: ExcelService;
 
   constructor() {
     this.dashboardService = new DashboardService();
@@ -27,6 +29,7 @@ export class ActionRouter {
     this.eventRepo = new EventRepository();
     this.reportService = new ReportGeneratorService();
     this.eventQueryService = new EventQueryService();
+    this.excelService = new ExcelService();
   }
 
   /**
@@ -139,6 +142,31 @@ export class ActionRouter {
           };
         }
 
+        case 'student_registration': {
+          const eventName = entities.topic;
+          let eventId;
+          let eventTitle = eventName || 'evento no especificado (registro general)';
+
+          if (eventName) {
+            const event = await this.eventRepo.findEventByName(eventName);
+            if (event) {
+              eventId = event.id;
+              eventTitle = event.title;
+            }
+          }
+
+          return {
+            success: true,
+            intent,
+            actionType: 'scene',
+            data: {
+              sceneName: 'studentRegistrationScene',
+              eventId: eventId,
+              eventTitle: eventTitle
+            }
+          };
+        }
+
         case 'generate_report': {
           const topic = entities.topic || 'General';
           const reportData = await this.reportService.generateInstitutionalReport(topic);
@@ -160,6 +188,39 @@ export class ActionRouter {
               pdfBuffer: reportData.pdfBuffer,
               docxBuffer: reportData.docxBuffer,
               topic
+            }
+          };
+        }
+
+        case 'generate_statistics_excel': {
+          const topic = entities.topic;
+          if (!topic) {
+            return {
+              success: false,
+              intent,
+              actionType: 'reply',
+              fallbackText: '¿De qué evento o taller deseas generar el archivo Excel estadístico?'
+            };
+          }
+
+          const excelData = await this.excelService.generateEventStatisticsExcel(topic);
+          if (!excelData) {
+            return {
+              success: false,
+              intent,
+              actionType: 'reply',
+              fallbackText: `❌ No pude encontrar registros para el evento "${topic}" o hubo un error al generar el Excel.`
+            };
+          }
+
+          return {
+            success: true,
+            intent,
+            actionType: 'document',
+            data: {
+              xlsxBuffer: excelData.buffer,
+              filename: excelData.filename,
+              topic: excelData.eventTitle
             }
           };
         }

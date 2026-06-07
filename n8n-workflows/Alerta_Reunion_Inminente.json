@@ -1,0 +1,53 @@
+{
+  "name": "Alerta Reunion Inminente",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a9b1c2d3-e4f5-6789-0abc-def123456789",
+      "name": "Ejecución Manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/webhooks/n8n/meetings",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"meeting_title\": \"Junta de Planificación Estratégica\",\n  \"time_left\": \"15 minutos\"\n}"
+      },
+      "id": "8b9e1c2a-99a2-463a-8b1a-2d3e4f5c6b7a",
+      "name": "Llamar API Backend (Reunión)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        450,
+        300
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ejecución Manual": {
+      "main": [
+        [
+          {
+            "node": "Llamar API Backend (Reunión)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f7d26389-e6c7-5eb1-b4cd-fc145d7gd3f7",
+  "id": "2"
+}
