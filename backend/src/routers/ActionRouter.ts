@@ -3,6 +3,7 @@ import { DashboardService } from '../services/DashboardService';
 import { EventService } from '../services/EventService';
 import { EventRepository } from '../repositories/EventRepository';
 import { ReportGeneratorService } from '../services/ReportGeneratorService';
+import { EventQueryService } from '../services/EventQueryService';
 
 export interface RouteResult {
   success: boolean;
@@ -18,12 +19,14 @@ export class ActionRouter {
   private eventService: EventService;
   private eventRepo: EventRepository;
   private reportService: ReportGeneratorService;
+  private eventQueryService: EventQueryService;
 
   constructor() {
     this.dashboardService = new DashboardService();
     this.eventService = new EventService();
     this.eventRepo = new EventRepository();
     this.reportService = new ReportGeneratorService();
+    this.eventQueryService = new EventQueryService();
   }
 
   /**
@@ -35,6 +38,56 @@ export class ActionRouter {
 
     try {
       switch (intent) {
+        case 'list_events': {
+          const eventsText = await this.eventQueryService.getFormattedEvents('all');
+          return {
+            success: true,
+            intent,
+            actionType: 'reply',
+            fallbackText: eventsText
+          };
+        }
+
+        case 'list_pending_events': {
+          const eventsText = await this.eventQueryService.getFormattedEvents('pending');
+          return {
+            success: true,
+            intent,
+            actionType: 'reply',
+            fallbackText: eventsText
+          };
+        }
+
+        case 'list_tomorrow_events': {
+          const eventsText = await this.eventQueryService.getFormattedEvents('tomorrow');
+          return {
+            success: true,
+            intent,
+            actionType: 'reply',
+            fallbackText: eventsText
+          };
+        }
+
+        case 'list_week_events': {
+          const eventsText = await this.eventQueryService.getFormattedEvents('week');
+          return {
+            success: true,
+            intent,
+            actionType: 'reply',
+            fallbackText: eventsText
+          };
+        }
+
+        case 'list_today_events': {
+          const eventsText = await this.eventQueryService.getFormattedEvents('today');
+          return {
+            success: true,
+            intent,
+            actionType: 'reply',
+            fallbackText: eventsText
+          };
+        }
+
         case 'morning_summary': {
           const summaryData = await this.dashboardService.getDailyExecutiveSummary();
           return {

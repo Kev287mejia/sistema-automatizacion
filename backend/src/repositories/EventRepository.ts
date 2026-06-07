@@ -107,5 +107,38 @@ export class EventRepository {
       return null;
     }
   }
+
+  /**
+   * Obtiene eventos programados dentro de un rango de fecha específico y con filtros opcionales.
+   */
+  async getEventsInDateRange(startDateIso: string, endDateIso: string, statusFilter?: 'Planificado' | 'En Progreso' | 'Finalizado' | 'Cancelado'): Promise<EventRecord[]> {
+    try {
+      let query = supabase
+        .from(this.tableName)
+        .select('*')
+        .gte('start_date', startDateIso)
+        .lte('start_date', endDateIso);
+
+      if (statusFilter) {
+        query = query.eq('status', statusFilter);
+      }
+
+      const { data, error } = await this.callWithTimeout(
+        (async () => {
+          return await query.order('start_date', { ascending: true });
+        })(),
+        3000
+      ) as any;
+
+      if (error) {
+        throw new Error(`Error obteniendo eventos en rango: ${error.message}`);
+      }
+
+      return data as EventRecord[];
+    } catch (e: any) {
+      console.error('Timeout/Error en getEventsInDateRange de Supabase:', e);
+      return [];
+    }
+  }
 }
 

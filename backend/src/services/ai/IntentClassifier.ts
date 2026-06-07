@@ -6,7 +6,7 @@ export interface ChatMessage {
 }
 
 export interface DetectedIntent {
-  intent: 'morning_summary' | 'get_pending_tasks' | 'create_event' | 'register_attendance' | 'generate_report' | 'create_meeting' | 'get_statistics' | 'get_overdue_projects' | 'create_document' | 'unknown';
+  intent: 'morning_summary' | 'get_pending_tasks' | 'create_event' | 'register_attendance' | 'generate_report' | 'create_meeting' | 'get_statistics' | 'get_overdue_projects' | 'create_document' | 'list_events' | 'list_pending_events' | 'list_tomorrow_events' | 'list_week_events' | 'list_today_events' | 'unknown';
   confidence: number;
   entities: {
     event_type?: string;
@@ -35,6 +35,11 @@ const classificationSchema = {
         'get_statistics',
         'get_overdue_projects',
         'create_document',
+        'list_events',
+        'list_pending_events',
+        'list_tomorrow_events',
+        'list_week_events',
+        'list_today_events',
         'unknown'
       ]
     },
@@ -103,7 +108,7 @@ export class IntentClassifier {
       
       Lista de intenciones permitidas y sus disparadores típicos:
       1. "morning_summary": Saludo matutino general o petición de resumen global de la jornada. Ej: "Buenos días", "Hola", "Resumen del día".
-      2. "get_pending_tasks": Pregunta explícita por tareas pendientes o por hacer. Ej: "¿Qué tengo pendiente hoy?", "dame mis tareas pendientes", "ver pendientes".
+      2. "get_pending_tasks": Pregunta explícita por tareas de la agenda personal pendientes o por hacer. Ej: "¿Qué tengo pendiente hoy?", "dame mis tareas pendientes", "ver pendientes".
       3. "create_event": Orden para programar un taller, conferencia, asesoría, reunión oficial o competencia. Ej: "Crear taller de innovación viernes 2 PM", "Crear conferencia mañana 10 AM".
          - Debes extraer en entities:
            * "event_type": El tipo de evento (taller, conferencia, asesoria, reunion, competencia).
@@ -120,7 +125,12 @@ export class IntentClassifier {
       7. "get_statistics": Solicitar datos numéricos o demográficos. Ej: "Dame estadísticas de participantes", "número de alumnos inscritos".
       8. "get_overdue_projects": Preguntar por proyectos atrasados o estado de emprendimientos. Ej: "proyectos atrasados", "bitácoras sin actualizar".
       9. "create_document": Redactar un borrador de texto formal, acta o minuta. Ej: "Redactar minuta de reunión", "borrador de texto ejecutivo".
-      10. "unknown": Saludos informales de paso, charlas casuales, agradecimientos, o instrucciones vagas que no encajen en lo anterior.
+      10. "list_events": Consultar lista general de actividades, talleres o eventos futuros planificados. Ej: "Cuáles son los talleres", "Qué talleres hay", "talleres programados", "mostrar talleres".
+      11. "list_pending_events": Consultar eventos institucionales que estén pendientes o planificados. Ej: "Qué talleres hay pendientes", "Actividades pendientes".
+      12. "list_tomorrow_events": Consultar talleres o eventos programados para el día de mañana. Ej: "Qué eventos hay mañana", "Qué actividades tenemos mañana".
+      13. "list_week_events": Consultar eventos programados para la semana actual. Ej: "Qué actividades hay esta semana", "Qué hay programado para esta semana".
+      14. "list_today_events": Consultar eventos programados para hoy. Ej: "Qué hay programado para hoy", "Qué talleres hay hoy".
+      15. "unknown": Saludos informales de paso, charlas casuales, agradecimientos, o instrucciones vagas que no encajen en lo anterior.
       
       Reglas de confianza (confidence):
       - Asigna un confidence score (0.0 a 1.0) que represente la seguridad de tu clasificación.
