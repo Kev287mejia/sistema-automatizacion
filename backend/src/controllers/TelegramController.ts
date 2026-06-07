@@ -56,9 +56,11 @@ export class TelegramController {
       if (result.actionType === 'scene') {
         const sceneName = result.data.sceneName;
         if (sceneName === 'attendanceScene') {
-          ctx.scene.session.state.eventId = result.data.eventId;
-          ctx.scene.session.state.eventTitle = result.data.eventTitle;
-          ctx.scene.enter('attendanceScene');
+          await ctx.scene.enter('attendanceScene');
+          ctx.scene.session.state = {
+            eventId: result.data.eventId,
+            eventTitle: result.data.eventTitle
+          };
           botResponseText = `Entrando a registro de asistencia para *${result.data.eventTitle}*...`;
           await ctx.reply(botResponseText, { parse_mode: 'Markdown' });
         } else if (sceneName === 'registerScene') {

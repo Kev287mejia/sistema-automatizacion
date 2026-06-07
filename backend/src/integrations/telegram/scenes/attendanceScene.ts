@@ -16,7 +16,14 @@ const attendanceRepo = new AttendanceRepository();
 
 export const attendanceScene = new Scenes.WizardScene<AttendanceContext>(
   'attendanceScene',
-  // Paso 1: Recibir correo, buscar y registrar
+  
+  // Paso 1: Pedir el correo (se ejecuta al entrar a la escena)
+  async (ctx) => {
+    await ctx.reply(`📋 *Registro de Asistencia*\n\nEvento: *${ctx.scene.session.state.eventTitle || 'Seleccionado'}*\n\nPor favor, envíame el *correo electrónico* del participante para registrar su asistencia:`, { parse_mode: 'Markdown' });
+    return ctx.wizard.next();
+  },
+
+  // Paso 2: Recibir correo, buscar en BD y registrar asistencia
   async (ctx) => {
     const text = ctx.message && 'text' in ctx.message ? ctx.message.text.trim() : null;
     
@@ -25,7 +32,10 @@ export const attendanceScene = new Scenes.WizardScene<AttendanceContext>(
       return ctx.scene.leave();
     }
 
-    if (!text) return ctx.reply('Por favor envíame el correo electrónico del participante.');
+    if (!text) {
+      await ctx.reply('Por favor envíame el correo electrónico del participante o escribe /cancelar para salir.');
+      return; // Permanece en el mismo paso esperando una entrada válida
+    }
 
     const email = text.toLowerCase();
     const eventId = ctx.scene.session.state.eventId;
@@ -41,7 +51,7 @@ export const attendanceScene = new Scenes.WizardScene<AttendanceContext>(
         return ctx.scene.leave();
       }
 
-      // Si existe, lo vinculamos al evento sin pedirle los 20 campos
+      // Registrar asistencia en base de datos
       await attendanceRepo.recordAttendance({
         participant_id: participant.id!,
         event_id: eventId!,
@@ -54,7 +64,7 @@ export const attendanceScene = new Scenes.WizardScene<AttendanceContext>(
       if (error.message === 'DUPLICATE_ATTENDANCE') {
         await ctx.reply(`⚠️ *Registro Duplicado*\n\nEste participante ya tiene marcada su asistencia para este evento.`, { parse_mode: 'Markdown' });
       } else {
-        console.error('Error en asistencia:', error);
+        console.error('Error en escena de asistencia:', error);
         await ctx.reply(`❌ Ocurrió un error en la base de datos.`);
       }
     }
