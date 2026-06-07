@@ -65,8 +65,11 @@ export class IntentService {
       const result = await model.generateContent(prompt);
       const cleanedText = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleanedText) as ParsedIntent;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error invocando a Gemini NLP:', error);
+      if (error.cause) {
+        console.error('Gemini NLP fetch failure cause:', error.cause);
+      }
       return {
         intent: 'UNKNOWN_OR_CASUAL',
         response_text: 'Disculpe directora, estoy teniendo interferencia en mi procesamiento neuronal. ¿Podría repetir la instrucción?'

@@ -159,9 +159,14 @@ export class TelegramController {
       ctx.session.history = history;
     });
 
-    this.bot.catch((err, ctx) => {
-      console.error(`Error procesando mensaje`, err);
-      ctx.reply('⚠️ Error interno del sistema conversacional.');
+    this.bot.catch((err: any, ctx) => {
+      console.error(`Error procesando mensaje:`, err);
+      if (err.cause) {
+        console.error(`Telegram bot catch cause:`, err.cause);
+      }
+      ctx.reply('⚠️ Error interno del sistema conversacional.').catch((e: any) => {
+        console.error('Failed to send error reply to Telegram:', e);
+      });
     });
   }
 

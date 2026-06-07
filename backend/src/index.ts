@@ -11,6 +11,7 @@ import { logger } from './utils/logger';
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1);
 const port = process.env.PORT || 3000;
 
 app.use(helmet());
