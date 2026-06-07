@@ -16,16 +16,34 @@ export class AgendaRepository {
    * Obtiene todas las tareas o reuniones de la agenda pendientes.
    */
   async getPendingAgenda(): Promise<AgendaItem[]> {
-    const { data, error } = await supabase
-      .from(this.tableName)
-      .select('*')
-      .eq('is_completed', false)
-      .order('start_time', { ascending: true });
+    const callWithTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+      let timeoutHandle: any;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs);
+      });
+      return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutHandle));
+    };
 
-    if (error) {
-      throw new Error(`Error al obtener pendientes de agenda: ${error.message}`);
+    try {
+      const { data, error } = await callWithTimeout(
+        (async () => {
+          return await supabase
+            .from(this.tableName)
+            .select('*')
+            .eq('is_completed', false)
+            .order('start_time', { ascending: true });
+        })(),
+        3000
+      );
+
+      if (error) {
+        throw new Error(`Error al obtener pendientes de agenda: ${error.message}`);
+      }
+
+      return data as AgendaItem[];
+    } catch (e: any) {
+      console.error('Timeout/Error en getPendingAgenda de Supabase:', e);
+      return [];
     }
-
-    return data as AgendaItem[];
   }
 }

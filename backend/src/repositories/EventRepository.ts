@@ -14,15 +14,28 @@ export interface EventRecord {
 export class EventRepository {
   private readonly tableName = 'events';
 
+  private async callWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    let timeoutHandle: any;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutHandle));
+  }
+
   /**
    * Crea un nuevo evento en Supabase.
    */
   async createEvent(event: EventRecord): Promise<EventRecord> {
-    const { data, error } = await supabase
-      .from(this.tableName)
-      .insert([event])
-      .select()
-      .single();
+    const { data, error } = await this.callWithTimeout(
+      (async () => {
+        return await supabase
+          .from(this.tableName)
+          .insert([event])
+          .select()
+          .single();
+      })(),
+      3000
+    );
 
     if (error) {
       throw new Error(`Error al crear evento: ${error.message}`);
@@ -41,38 +54,58 @@ export class EventRepository {
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
-    const { data, error } = await supabase
-      .from(this.tableName)
-      .select('*')
-      .gte('start_date', startOfDay.toISOString())
-      .lte('start_date', endOfDay.toISOString())
-      .order('start_date', { ascending: true });
+    try {
+      const { data, error } = await this.callWithTimeout(
+        (async () => {
+          return await supabase
+            .from(this.tableName)
+            .select('*')
+            .gte('start_date', startOfDay.toISOString())
+            .lte('start_date', endOfDay.toISOString())
+            .order('start_date', { ascending: true });
+        })(),
+        3000
+      );
 
-    if (error) {
-      throw new Error(`Error al obtener eventos de hoy: ${error.message}`);
+      if (error) {
+        throw new Error(`Error al obtener eventos de hoy: ${error.message}`);
+      }
+
+      return data as EventRecord[];
+    } catch (e: any) {
+      console.error('Timeout/Error en getTodayEvents de Supabase:', e);
+      return [];
     }
-
-    return data as EventRecord[];
   }
 
   /**
    * Busca un evento por su título (aproximación).
    */
   async findEventByName(nameFragment: string): Promise<EventRecord | null> {
-    const { data, error } = await supabase
-      .from(this.tableName)
-      .select('*')
-      .ilike('title', `%${nameFragment}%`)
-      .order('start_date', { ascending: false })
-      .limit(1)
-      .single();
+    try {
+      const { data, error } = await this.callWithTimeout(
+        (async () => {
+          return await supabase
+            .from(this.tableName)
+            .select('*')
+            .ilike('title', `%${nameFragment}%`)
+            .order('start_date', { ascending: false })
+            .limit(1)
+            .single();
+        })(),
+        3000
+      );
 
-    if (error) {
-      if (error.code === 'PGRST116') return null;
-      throw new Error(`Error buscando evento: ${error.message}`);
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw new Error(`Error buscando evento: ${error.message}`);
+      }
+
+      return data as EventRecord;
+    } catch (e: any) {
+      console.error('Timeout/Error en findEventByName de Supabase:', e);
+      return null;
     }
-
-    return data as EventRecord;
   }
 }
 
