@@ -14,6 +14,7 @@ if (!token) {
 }
 
 export const bot = new Telegraf<any>(token || 'dummy_token');
+bot.telegram.webhookReply = false;
 
 const stage = new Scenes.Stage<any>([registerScene, attendanceScene]);
 const sessionRepo = new SessionRepository();
