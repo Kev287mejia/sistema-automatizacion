@@ -1,50 +1,107 @@
 import { EventRepository } from '../repositories/EventRepository';
-import { EventParser } from './EventParser';
 
 export class EventService {
   private eventRepo: EventRepository;
-  private parser: EventParser;
 
   constructor() {
     this.eventRepo = new EventRepository();
-    this.parser = new EventParser();
   }
 
   /**
-   * Intenta parsear y crear un evento a partir de un texto natural.
+   * Crea un evento a partir de parámetros estructurados extraídos por Gemini.
    */
-  async processEventCreation(text: string): Promise<string> {
-    const parsedData = this.parser.parseCommand(text);
-    
-    if (!parsedData) {
-      return `❌ No logré entender la instrucción.\n\n` +
+  async processEventCreation(params: any): Promise<string> {
+    const title = params.event_title || params.title;
+    const type = params.event_type || params.type || 'Taller';
+    const rawDay = params.date || 'hoy';
+    const rawTime = params.time || '12 PM';
+
+    if (!title) {
+      return `❌ No logré determinar el título del evento.\n\n` +
              `*Formato correcto:* \n` +
              `"Crear taller de [título] el [día] a las [hora]"\n\n` +
-             `_Ejemplo: Crear taller de robótica el viernes a las 3 PM_`;
+             `_Ejemplo: Crear taller de innovación el viernes a las 2 PM_`;
+    }
+
+    // Normalizar Tipo a los autorizados en la base de datos (event_type_enum)
+    let eventType: 'Taller' | 'Conferencia' | 'Asesoría' | 'Reunión' | 'Competencia' = 'Taller';
+    const typeLower = type.toLowerCase();
+    if (typeLower.includes('reuni')) eventType = 'Reunión';
+    else if (typeLower.includes('conferencia')) eventType = 'Conferencia';
+    else if (typeLower.includes('asesor')) eventType = 'Asesoría';
+    else if (typeLower.includes('competencia')) eventType = 'Competencia';
+
+    // Resolver fecha
+    let startDate: Date;
+    try {
+      startDate = this.calculateDate(rawDay.toLowerCase(), rawTime.toLowerCase());
+    } catch (e) {
+      startDate = new Date();
     }
 
     try {
-      // Asumimos que los eventos duran 2 horas por defecto
-      const endDate = new Date(parsedData.startDate);
+      // Duración por defecto: 2 horas
+      const endDate = new Date(startDate);
       endDate.setHours(endDate.getHours() + 2);
 
       const newEvent = await this.eventRepo.createEvent({
-        title: parsedData.title,
-        event_type: parsedData.type,
-        start_date: parsedData.startDate.toISOString(),
+        title: title.charAt(0).toUpperCase() + title.slice(1),
+        event_type: eventType,
+        start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
         status: 'Planificado'
       });
 
       return `✅ *Evento Creado Exitosamente*\n\n` +
-             `*Tipo:* ${parsedData.type}\n` +
-             `*Título:* ${parsedData.title}\n` +
-             `*Fecha y Hora:* ${parsedData.startDate.toLocaleString('es-ES')}\n\n` +
+             `*Tipo:* ${eventType}\n` +
+             `*Título:* ${newEvent.title}\n` +
+             `*Fecha y Hora:* ${startDate.toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' })}\n\n` +
              `Se ha registrado en la base de datos institucional.`;
-
     } catch (error: any) {
       console.error('Error al guardar evento:', error);
       return `⚠️ Ocurrió un error al guardar el evento en Supabase.`;
     }
+  }
+
+  private calculateDate(dayName: string, timeString: string): Date {
+    const daysMap: { [key: string]: number } = {
+      'domingo': 0, 'lunes': 1, 'martes': 2, 'miércoles': 3, 'miercoles': 3,
+      'jueves': 4, 'viernes': 5, 'sábado': 6, 'sabado': 6
+    };
+
+    const now = new Date();
+    let targetDate = new Date(now);
+
+    // Si es una fecha ISO o formato de fecha estándar
+    if (!isNaN(Date.parse(dayName))) {
+      targetDate = new Date(dayName);
+    } else if (dayName === 'mañana' || dayName === 'manana') {
+      targetDate.setDate(now.getDate() + 1);
+    } else if (dayName !== 'hoy') {
+      const currentDay = now.getDay();
+      const targetDay = daysMap[dayName];
+      if (targetDay !== undefined) {
+        let diff = targetDay - currentDay;
+        if (diff <= 0) diff += 7; // Próxima semana si el día ya pasó o es hoy
+        targetDate.setDate(now.getDate() + diff);
+      }
+    }
+
+    // Parsear hora (ej. "2 PM", "14:00", "10 AM")
+    const timeRegex = /(\d{1,2})(?:\:(\d{2}))?\s*(AM|PM|am|pm)?/i;
+    const timeMatch = timeString.match(timeRegex);
+    
+    if (timeMatch) {
+      let hours = parseInt(timeMatch[1], 10);
+      const minutes = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+      const ampm = timeMatch[3] ? timeMatch[3].toLowerCase() : null;
+
+      if (ampm === 'pm' && hours < 12) hours += 12;
+      if (ampm === 'am' && hours === 12) hours = 0;
+
+      targetDate.setHours(hours, minutes, 0, 0);
+    }
+
+    return targetDate;
   }
 }

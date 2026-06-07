@@ -90,7 +90,7 @@ export class ActionRouter {
         }
 
         case 'event_creation': {
-          const creationResultText = await this.eventService.processEventCreation(rawText);
+          const creationResultText = await this.eventService.processEventCreation(detected.parameters || {});
           return {
             success: true,
             intent,
