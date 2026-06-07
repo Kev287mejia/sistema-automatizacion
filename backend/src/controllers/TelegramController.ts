@@ -32,6 +32,7 @@ export class TelegramController {
   public initializeRoutes() {
     this.bot.start((ctx) => {
       // Inicializar historial
+      ctx.session = ctx.session || {};
       ctx.session.history = [];
       const welcomeMessage = `🏛️ *Hermes Nivel Ejecutivo Activado*\n\n` +
                              `Soy su asistente cognitivo. Puede hablarme de forma natural.\n\n` +
@@ -51,6 +52,7 @@ export class TelegramController {
       await ctx.sendChatAction('typing');
 
       // 1. Recuperar o inicializar Historial (Ventana deslizante de 6 mensajes)
+      ctx.session = ctx.session || {};
       if (!ctx.session.history) ctx.session.history = [];
       const history: ChatMessage[] = ctx.session.history;
 
